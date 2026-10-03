@@ -47,6 +47,24 @@ def actions() -> str:
 - When the conversation is finished, say a brief goodbye and call end_call."""
 
 
+def confirm_after_tool() -> str:
+    """Always-confirm rule. Loaded into every business profile.
+
+    Without this, the model sometimes returns empty content after a tool call
+    (especially after `take_message` returns success), so the caller sees a
+    silent gap instead of a confirmation.
+    """
+    return """AFTER A TOOL CALL
+- After EVERY tool call — including take_message, book_appointment, end_call,
+  send_sms, anything — you MUST follow up with a short spoken reply to the
+  caller that says what you did or what happens next. Never end a turn with
+  empty content.
+- If a tool returned an error, tell the caller briefly and ask how they want
+  to proceed.
+- If a tool returned ok but the next step needs information (e.g. booking
+  needs a time), continue collecting it instead of saying "thank you, bye"."""
+
+
 def dynamic_block(
     *,
     business_name: str,

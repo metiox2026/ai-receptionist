@@ -372,8 +372,8 @@ async def chat_websocket(websocket: WebSocket) -> None:
             "X-Title": "receptionist-demo",
         },
     )
-    system_prompt = await build_system_prompt(business_id="eval", caller={})
-    anthropic_tools = await all_tools_for_business("eval")
+    system_prompt = await build_system_prompt(business_id="metiox", caller={})
+    anthropic_tools = await all_tools_for_business("metiox")
     openai_tools = _anthropic_to_openai_tools(anthropic_tools)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
@@ -470,6 +470,7 @@ async def chat_websocket(websocket: WebSocket) -> None:
         messages.append({"role": "user", "content": user_text})
         safety = 0
         agent_text = ""
+        tool_call_made = False
         while safety < 8:
             try:
                 resp = await llm.chat.completions.create(
@@ -506,6 +507,7 @@ async def chat_websocket(websocket: WebSocket) -> None:
                 await websocket.send_json({"type": "agent_text", "text": agent_text})
                 break
 
+            tool_call_made = True
             for tc in tool_calls:
                 args: dict = {}
                 try:
@@ -531,6 +533,35 @@ async def chat_websocket(websocket: WebSocket) -> None:
                     }
                 )
             safety += 1
+
+        # Safety net: if the model returned no text after a tool call, ask
+        # once more for a spoken confirmation. Prevents the "blank reply"
+        # bug where the model thinks the tool result speaks for itself.
+        if tool_call_made and not agent_text:
+            try:
+                followup = messages + [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Please reply out loud now. Tell the caller what you "
+                            "just did in one or two short sentences."
+                        ),
+                    }
+                ]
+                resp = await llm.chat.completions.create(
+                    model=settings.openai_model,
+                    max_tokens=200,
+                    messages=followup,
+                )
+                agent_text = (resp.choices[0].message.content or "").strip()
+                if agent_text:
+                    messages.append({"role": "assistant", "content": agent_text})
+                    await websocket.send_json(
+                        {"type": "agent_text", "text": agent_text}
+                    )
+            except Exception:
+                pass
+
         return agent_text
 
     # ----- Helper: TTS via Cartesia, stream raw PCM to browser -----
