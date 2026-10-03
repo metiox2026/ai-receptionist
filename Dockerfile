@@ -47,6 +47,6 @@ EXPOSE 8766
 
 # Healthcheck so Dockploy knows when the container is up.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -fsS http://localhost:8766/api/scenarios > /dev/null || exit 1
+    CMD curl -fsS http://localhost:8766/ > /dev/null || exit 1
 
 CMD ["uvicorn", "demo_server:app", "--host", "0.0.0.0", "--port", "8766"]
