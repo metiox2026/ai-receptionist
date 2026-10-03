@@ -1,0 +1,12 @@
+name: message_taking
+description: >
+  Caller wants someone to call them back rather than wait on hold.
+turns:
+  - role: caller
+    text: "Can you have someone call me back? I can't hold."
+    expect:
+      - agent_uses_tool: take_message
+      - agent_collects: [name, phone]
+metrics:
+  - task_completion
+  - tool_call_accuracy

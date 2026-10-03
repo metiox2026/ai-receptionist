@@ -1,0 +1,15 @@
+name: faq_hours
+description: >
+  Caller asks a simple FAQ. Agent should answer directly from the system
+  prompt without calling any tools.
+turns:
+  - role: caller
+    text: "What time do you close on Saturday?"
+    expect:
+      - agent_uses_no_tool
+      - agent_response_includes_one_of: ["Saturday", "5 pm", "5:00"]
+      - agent_response_length_max_words: 25
+metrics:
+  - brevity
+  - no_hallucinated_facts
+  - zero_tool_calls

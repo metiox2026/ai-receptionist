@@ -1,0 +1,56 @@
+# Anything that shouldn't go into the image.
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+docs/
+
+# Python build/cache
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node (dashboard isn't shipped in this image)
+node_modules/
+.next/
+out/
+
+# Local data and secrets
+.env
+.env.*
+!.env.example
+data/
+*.sqlite*
+postgres_data/
+redis_data/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Recordings / logs
+recordings/
+*.wav
+*.mp3
+*.ogg
+*.log
+logs/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# The full architecture (only the demo runs in this image)
+api/
+docker-compose.yml

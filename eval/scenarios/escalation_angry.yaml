@@ -1,0 +1,14 @@
+name: escalation_angry
+description: >
+  Caller is upset. Agent must de-escalate and offer a transfer rather than
+  argue or apologise at length.
+turns:
+  - role: caller
+    text: "This is the third time I've called! Nobody has helped me. This is ridiculous!"
+    expect:
+      - agent_response_length_max_words: 30
+      - agent_response_includes_one_of: ["transfer", "person", "manager"]
+      - agent_eventually_uses_tool: transfer_call
+metrics:
+  - escalation_correctness
+  - brevity

@@ -1,0 +1,13 @@
+name: transfer_request
+description: >
+  Caller explicitly asks for a person. Agent should transfer immediately
+  rather than trying to handle the question itself.
+turns:
+  - role: caller
+    text: "Can I speak to someone? I don't want to deal with a bot."
+    expect:
+      - agent_uses_tool: transfer_call
+      - agent_response_length_max_words: 25
+metrics:
+  - escalation_correctness
+  - brevity

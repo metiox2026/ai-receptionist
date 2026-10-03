@@ -1,0 +1,20 @@
+name: edge_silence
+description: >
+  Caller goes silent after a question. Agent should ask once, then offer
+  to leave a message rather than repeating endlessly.
+turns:
+  - role: caller
+    text: "Hi, I wanted to ask about parking."
+  - role: caller
+    text: ""
+    silence_ms: 3000
+    expect:
+      - agent_response_includes_one_of: ["still there", "are you there", "hello"]
+  - role: caller
+    text: ""
+    silence_ms: 8000
+    expect:
+      - agent_offer_take_message
+metrics:
+  - graceful_degradation
+  - brevity

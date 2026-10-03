@@ -1,0 +1,1 @@
+"""Routers — one per dashboard section plus internal endpoints for the agent."""

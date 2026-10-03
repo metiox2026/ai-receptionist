@@ -1,0 +1,20 @@
+name: booking_basic
+description: >
+  A new caller asks to book a haircut for next Tuesday morning. The agent
+  should check availability, offer two options, and confirm a single slot.
+turns:
+  - role: caller
+    text: "Hi, I'd like to book a haircut for next Tuesday morning."
+    expect:
+      - agent_uses_tool: check_availability
+      - agent_asks_question_includes: "name"
+  - role: caller
+    text: "Sara. My number is Tuesday."
+    expect:
+      - agent_uses_tool: book_appointment
+      - agent_response_length_max_words: 40
+      - agent_response_includes_one_of: ["all set", "you're booked", "confirmed"]
+metrics:
+  - tool_call_accuracy
+  - brevity
+  - no_hallucinated_facts

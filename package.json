@@ -1,0 +1,15 @@
+{
+  "name": "ai-receptionist",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "dashboard"
+  ],
+  "scripts": {
+    "dev": "npm --workspace dashboard run dev",
+    "build": "npm --workspace dashboard run build",
+    "start": "npm --workspace dashboard run start",
+    "lint": "npm --workspace dashboard run lint",
+    "test": "npm --workspace dashboard run test"
+  }
+}
