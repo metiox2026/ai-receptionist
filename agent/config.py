@@ -21,10 +21,13 @@ class Settings(BaseSettings):
     # ---------- General ----------
     environment: str = "development"
     log_level: str = "INFO"
-    database_url: str = Field(..., alias="DATABASE_URL")
-    redis_url: str = Field(..., alias="REDIS_URL")
-    api_base_url: str = Field(..., alias="PUBLIC_BASE_URL")
-    secret_key: str = Field(..., alias="SECRET_KEY")
+    # database_url / redis_url are required for the full architecture (api,
+    # worker, dashboard) but NOT for the standalone demo_server. They are
+    # loaded lazily so the demo can boot without postgres/redis running.
+    database_url: str = Field(default="postgresql://localhost/demo", alias="DATABASE_URL")
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    api_base_url: str = Field(default="http://localhost:16000", alias="PUBLIC_BASE_URL")
+    secret_key: str = Field(default="dev-secret", alias="SECRET_KEY")
 
     # ---------- Telephony (Telnyx) ----------
     telnyx_api_key: str | None = Field(default=None, alias="TELNYX_API_KEY")
