@@ -29,7 +29,7 @@ from typing import Any
 from cartesia import AsyncCartesia
 from deepgram import AsyncDeepgramClient
 from deepgram.core.events import EventType
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from openai import AsyncOpenAI
 
@@ -37,6 +37,7 @@ from agent.config import get_settings
 from agent.prompts.builder import build_system_prompt
 from agent.tools import all_tools_for_business
 from eval.run_eval import TOOL_STUBS, _anthropic_to_openai_tools
+from telnyx import build_texml, handle_telnyx_call
 
 
 app = FastAPI(title="Receptionist Demo")
@@ -77,6 +78,70 @@ async def _load_cartesia_voices(api_key: str) -> list[dict[str, str]]:
 @app.get("/")
 async def index() -> HTMLResponse:
     return HTMLResponse(HTML_PAGE)
+
+
+# ===========================================================================
+# TELNYX — phone-call webhook + media stream
+# ===========================================================================
+#
+#   1. Telnyx POSTs /telnyx/voice when a call comes in.
+#      We return TeXML that <Answer>s the call and opens a <Stream>.
+#   2. Telnyx opens a WebSocket to /telnyx/media and streams bidirectional
+#      audio (L16 16kHz mono). handle_telnyx_call runs the voice pipeline.
+#
+# TODO: verify Telnyx's ed25519 signature using TELNYX_PUBLIC_KEY. Skipped for
+# now because the URL is HTTPS + URL-token protected, and signature parsing
+# varies by Telnyx product. Revisit before exposing the webhook publicly.
+
+@app.post("/telnyx/voice")
+async def telnyx_voice_webhook(request: Request) -> Response:
+    settings = get_settings()
+    # Telnyx sends call info in the body (from, to, call_control_id, ...). We
+    # don't need any of it for the simple answer-and-stream flow.
+    await request.body()
+
+    # Build the public base URL from the request so it works behind any host
+    # (Cloudflare proxy, Dockploy, local ngrok, ...).
+    scheme = request.url.scheme
+    host = request.headers.get("host") or request.url.netloc
+    public_base = f"{scheme}://{host}"
+
+    if not all([settings.openai_api_key, settings.deepgram_api_key, settings.cartesia_api_key]):
+        # Misconfigured server — fail loudly so Telnyx retries don't pile up
+        # and so the caller hears a proper error instead of silence.
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?>\n'
+                    "<Response><Speak>Sorry, the receptionist is unavailable. "
+                    "Please try again later.</Speak></Response>\n",
+            media_type="application/xml",
+        )
+
+    return Response(content=build_texml(public_base), media_type="application/xml")
+
+
+@app.websocket("/telnyx/media")
+async def telnyx_media_ws(websocket: WebSocket) -> None:
+    await websocket.accept()
+    call_control_id = "unknown"
+    try:
+        # Telnyx sends {"event": "connected"} first, then {"event": "start",
+        # "call_control_id": "..."}. We tolerate either order by reading up
+        # to two control messages before kicking off the call handler.
+        first = await asyncio.wait_for(websocket.receive_json(), timeout=10.0)
+        first_event = first.get("event")
+        if first_event == "start":
+            call_control_id = first.get("call_control_id", call_control_id)
+        elif first_event == "connected":
+            second = await asyncio.wait_for(websocket.receive_json(), timeout=10.0)
+            if second.get("event") == "start":
+                call_control_id = second.get("call_control_id", call_control_id)
+        # If we never got a start event, still try — Telnyx sometimes
+        # sends media frames directly in test environments.
+        await handle_telnyx_call(call_control_id, websocket)
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        pass
+    except Exception as exc:
+        print(f"[telnyx] media ws error: {exc}")
 
 
 # ===========================================================================
