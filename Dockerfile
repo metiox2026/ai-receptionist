@@ -31,12 +31,14 @@ RUN pip install \
     'pydantic-settings>=2.4' \
     'structlog>=24.1' \
     'httpx>=0.27' \
-    'websockets>=12.0'
+    'websockets>=12.0' \
+    'numpy>=1.26'
 
 # Copy the project. The agent/ and eval/ packages are imported by demo_server.py.
 COPY demo_server.py ./
 COPY agent/ ./agent/
 COPY eval/ ./eval/
+COPY telnyx.py twilio.py audio_utils.py ./
 
 # Drop privileges (Dockploy / many hosts expect a non-root user).
 RUN useradd --create-home --uid 1000 app \

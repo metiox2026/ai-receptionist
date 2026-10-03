@@ -38,6 +38,7 @@ from agent.prompts.builder import build_system_prompt
 from agent.tools import all_tools_for_business
 from eval.run_eval import TOOL_STUBS, _anthropic_to_openai_tools
 from telnyx import build_texml, handle_telnyx_call
+from twilio import build_twiml, handle_twilio_call
 
 
 app = FastAPI(title="Receptionist Demo")
@@ -142,6 +143,64 @@ async def telnyx_media_ws(websocket: WebSocket) -> None:
         pass
     except Exception as exc:
         print(f"[telnyx] media ws error: {exc}")
+
+
+# ===========================================================================
+# TWILIO — phone-call webhook + media stream
+# ===========================================================================
+#
+# Same flow as Telnyx: Twilio POSTs the inbound call to /twilio/voice, we
+# return TwiML that <Connect><Stream>s to /twilio/media, Twilio opens a
+# WebSocket and streams bidirectional audio as JSON events.
+#
+# Audio format: Twilio streams PCMU (mulaw) 8 kHz. We decode + resample
+# to 16 kHz L16 for Deepgram and reverse on the way out (see twilio.py +
+# audio_utils.py).
+
+@app.post("/twilio/voice")
+async def twilio_voice_webhook(request: Request) -> Response:
+    # Twilio sends form-urlencoded: From, To, CallSid, etc. We don't need it
+    # for the simple connect-and-stream flow.
+    await request.body()
+    settings = get_settings()
+    if not all([settings.openai_api_key, settings.deepgram_api_key, settings.cartesia_api_key]):
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?>\n'
+                    "<Response><Say>Sorry, the receptionist is unavailable. "
+                    "Please try again later.</Say></Response>\n",
+            media_type="application/xml",
+        )
+
+    scheme = request.url.scheme
+    host = request.headers.get("host") or request.url.netloc
+    public_base = f"{scheme}://{host}"
+    return Response(content=build_twiml(public_base), media_type="application/xml")
+
+
+@app.websocket("/twilio/media")
+async def twilio_media_ws(websocket: WebSocket) -> None:
+    await websocket.accept()
+    stream_sid = ""
+    call_sid = ""
+    try:
+        # Twilio sends "connected" then "start"; tolerate either order.
+        first = await asyncio.wait_for(websocket.receive_json(), timeout=10.0)
+        first_event = first.get("event")
+        if first_event == "start":
+            stream_sid = first.get("streamSid", stream_sid)
+            start = first.get("start") or {}
+            call_sid = start.get("callSid", call_sid)
+        elif first_event == "connected":
+            second = await asyncio.wait_for(websocket.receive_json(), timeout=10.0)
+            if second.get("event") == "start":
+                stream_sid = second.get("streamSid", stream_sid)
+                start = second.get("start") or {}
+                call_sid = start.get("callSid", call_sid)
+        await handle_twilio_call(call_sid or "unknown", stream_sid, websocket)
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        pass
+    except Exception as exc:
+        print(f"[twilio] media ws error: {exc}")
 
 
 # ===========================================================================
